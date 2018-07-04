@@ -1,0 +1,11 @@
+类型mysql的limit分页，查询[m, n]记录
+
+select * from
+(
+select a.*, rownum as con from
+(
+select * from my_table_name
+) a
+where rownum <=n
+)
+where con >= m
