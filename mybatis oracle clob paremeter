@@ -1,0 +1,88 @@
+数据表字段：imageurl 为 color类型,manid为number类型
+
+ps: myeclipse断点调试时，经常报无法从套接字获取更多数据 , 而不断点时报错概率更小
+
+1. 使用mybatis-mapper直接写的存储过程处理 成功
+----------------- service
+paramMap.put("in_imageurl", imageurl);
+paramMap.put("in_manid", Integer.valueOf(GuanlianId));		
+tttService.updateImageUrl(paramMap);
+        
+----------------- mapper
+<update id="updateImageUrl" parameterType="java.util.Map">
+		DECLARE
+			V_IMAGEURL CLOB := #{in_imageurl,javaType=string,jdbcType=CLOB};
+			V_MANID NUMBER := #{in_manid,javaType=int,jdbcType=INTEGER}; <!-- 不能用number -->
+		BEGIN
+			UPDATE asdfttt set IMAGEURL = V_IMAGEURL where MANID = V_MANID;
+			COMMIT;
+		END;
+</update>
+
+ps: 单独把imageurl字段在一个新接口中updateImageUrl(如上)调用来更新它，而把原来的更新语句中的imageurl给删掉了
+merge into asdfttt tre  
+		using dual on(tre.manid=#{manid,jdbcType=NUMERIC})
+		when matched then
+     	update set tre.sex = #{sex,jdbcType=NUMERIC}, tre.nation = #{nation,jdbcType=VARCHAR}, tre.idnumber = #{idnumber,jdbcType=VARCHAR}, tre.job = #{job,jdbcType=VARCHAR}, tre.pattern = #{pattern,jdbcType=VARCHAR}, tre.expirydate = #{expirydate,jdbcType=VARCHAR}, tre.issueer = #{issueer,jdbcType=VARCHAR}, tre.address = #{address,jdbcType=VARCHAR}, 这里原来有imageurl, tre.prison_term = #{prison_term,jdbcType=NUMERIC} 
+		when not matched then  
+     	insert (manid, sex, nation, idnumber, job, pattern, expirydate, issueer, address, 这里原来有imageurl, prison_term) 
+     	values (#{manid,jdbcType=NUMERIC}, #{sex,jdbcType=NUMERIC}, #{nation,jdbcType=VARCHAR}, #{idnumber,jdbcType=VARCHAR}, #{job,jdbcType=VARCHAR}, #{pattern,jdbcType=VARCHAR}, #{expirydate,jdbcType=VARCHAR}, #{issueer,jdbcType=VARCHAR}, #{address,jdbcType=VARCHAR}, #{prison_term,jdbcType=NUMERIC})
+
+
+2. 调用外部的存储过程 失败
+可能是参数没有传入到存储过程中，单独调用存储过程是可以，可能是类型啥的还不对
+updatePhotoByManid
+---------------- 存储过程
+create or replace procedure P_UPDATE_IMAGEURL(in_imageurl in clob, in_manid in number) is
+	v_clob clob := in_imageurl;
+BEGIN
+  update asdfttt set imageurl = v_clob where manid = in_manid;
+END P_UPDATE_IMAGEURL;
+/
+
+------------- 测试调用存储过程
+call P_UPDATE_IMAGEURL('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAGEAAAA+CAYAAAA73nWBAAAZoElEQVR4nK1cWY8cR3KOzO4ZDsWbWl3WAWkFeC0sYNgreP0z/Qf87Bc/+M1v+7CwYfiADSxgYA1Igg5QSx3kitfwmO7KcGZEfJGRWT0SRW2RPV1dmZVHHF8cmVWplML0wgf7p1CixPVvSrQvRP91t9A/fVHof+7s6IunW8q0EJdaR+5LxGmh1nOmDZVUiJd6b95KW+xDSvI75RSusbaTpKT+YR1Crn9Ku6XWbdfk1tyHWfvQm1j7595DqT8S7mNtI6VMlTZax8rav5zyQIFlWWob2VpqX218eo90jY6kafb2SNpr/dS/P50JtUfWDktjRWIn9L42/cUp029vM/3950x3TovWr4RvbMtLnWgWksg/nbi2q8SxcyOCTqzeuYQR2PVGmzZ5ZowrhzqVUGkjRM1Z29AeEiqEGdV/dT6N2K3tdk/KWYlmDGxtoF9lwsaJW1jE0cvBBDDbOGXiRX8qJhh/60SVEq2LKvU2AJDi8cL0j18w/cPHe7rzNNPDRmxOpkM4tLZIoEhzUgLUITY+J7smhAnS3BoQAiwljK0TOSXVni6LRRjOB2YuxKvjaATLOVtfpi3ZiOdKyUaFRORjCZrKUepjH6qUPtI/DRNYWha1TCwMkYE1LouWFPtd6OFZof+8S/Tv3zD95utEX57G7sEEtkmwygw03SRNZ9QnzhM1dcpJxqMSeZgJKgQc4AvQM0oypPbw/FPQPlzOPq5DTLDCzrcXZwLsQW+UbIKdEKCfMUvoWRnCAlwiZb/5KtHf/T7RZw+TWxfiba3LtKlDW3SaSjCZUBFmNkIRb4TAjTGbpn+JnPypaU+7eaO4K9AicpAU/oSyNjowQHsyaTfY5L0JRJYxZwJhyW2INlNLK7a2Iuh201xOgOvkFJP+0RH9JDiamGAMELSVgRkTOrudWW1gYAY05uMHRL/9JtHv7mb6/QOmP5xuaS9S2HA5k1mcitVJJ8dKqGSw01rKNtFSWacauDG4gxGEXW4Qt3QmEIw2OJD0k4swTfoFE5v9z1qn9aHzgHJCg4oJTe6OQ5d7EYoLeU/vXv4jvfvStz+FCeXgb2UCY34rJpQqnjmZJBiBhIjGmCf7he6eJfr6aaF/vX1M//zlhj59tJUJ7ivhNlnnI4LK3eER6yMGOGnfZjdKM7K500HgpxKnaYoS2xht7YoA5Y2wb0faToPJLGq8iEbwphr4Bpm0pYV3Yph5MQ1pWmo2od2XtoWOWJ2Ut67dow9v3KJfX/+YPrj6Kd08ekA3Nw9elAlRC8ZvkTxXUWM', 21);
+
+------------- mybatis调用存储过程 都失败
+call P_UPDATE_IMAGEURL(#{in_imageurl,mode=IN,jdbcType=CLOB},#{in_manid,mode=IN,jdbcType=INTEGER})
+或
+	  <parameterMap type="java.util.Map" id="updateImageurlParam">
+        <parameter property="in_imageurl" mode="IN" javaType="string" jdbcType="CLOB"/>
+        <parameter property="in_manid" mode="IN" javaType="int" jdbcType="INTEGER"/>
+    </parameterMap>
+    <select id="updateImageUrl" parameterMap="updateImageurlParam" statementType="CALLABLE">
+	    call P_UPDATE_IMAGEURL(?, ?)
+	  </select>
+         
+ 3 ---------------------- jdbc方式插入是成功的
+ public static void main(String[] args) {
+        Connection conn = null;
+        Statement stmt = null;
+        ResultSet rs = null;
+        try {
+            Class.forName("oracle.jdbc.driver.OracleDriver");
+            try {
+                String url = "jdbc:oracle:thin:@localhost:1521:orcl";
+                String username = "root";
+                String password = "localsense";
+                conn= DriverManager.getConnection(url,username,password);
+                stmt = conn.createStatement();
+                // 执行
+                rs = getResultSet(stmt, rs);
+                rs.close();
+                stmt.close();
+                conn.close();
+            } catch (SQLException e) {
+                e.printStackTrace();
+            }
+        } catch (ClassNotFoundException e) {
+            e.printStackTrace();
+        }
+}
+
+private static ResultSet getResultSet(Statement stmt, ResultSet rs) throws SQLException {
+    //测试例子
+    rs = stmt.executeQuery("declare v_clob clob :='data:image/png;base64,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'; begin update tag_relation_extra set imageurl = v_clob; end; ");
+
+    return rs;
+}
